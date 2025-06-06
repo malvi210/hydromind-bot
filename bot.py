@@ -1,4 +1,4 @@
-# ==== FLASK SERVER TO KEEP REPLIT AWAKE ====
+# ==== FLASK SERVER TO KEEP ALIVE ====
 from flask import Flask
 from threading import Thread
 
@@ -15,31 +15,20 @@ def keep_alive():
     t = Thread(target=run_web)
     t.start()
 
-
 # ==== DISCORD + OPENAI BOT ====
 import discord
-import os
 import openai
+import os
 
-# Load secrets from Replit Secrets tab
-DISCORD_TOKEN = os.environ.get("TOKEN")
+# DEBUG: Show environment variable status
+DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+print(f"[DEBUG] DISCORD_TOKEN: {repr(DISCORD_TOKEN)}")
+print(f"[DEBUG] OPENAI_API_KEY: {repr(OPENAI_API_KEY)}")
 
-# Initialize OpenAI
 openai.api_key = OPENAI_API_KEY
 
-# Load all transcripts into memory
-def load_transcripts(folder_path):
-    all_text = ""
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".txt"):
-            with open(os.path.join(folder_path, filename), "r", encoding="utf-8") as f:
-                all_text += f.read() + "\n"
-    return all_text.strip()
-
-transcript_memory = load_transcripts("transcripts")
-
-# Initialize Discord client
+# Enable message content
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
@@ -54,36 +43,25 @@ async def on_message(message):
         return
 
     if message.content.startswith("!ask"):
-        query = message.content[5:].strip()
-
+        query = message.content[4:].strip()
         if not query:
-            await message.channel.send("Ask me something using `!ask <your question>`.")
+            await message.channel.send("Ask me something after !ask")
             return
-
-        prompt = f"""
-You are Hydro Mind, an intelligent AI brain trained on the following transcripts. Speak like you're remembering this info, not quoting it. Be helpful, fluid, and concise.
-
-Transcript Memory:
-{transcript_memory}
-
-User asked: {query}
-"""
 
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=300,
-                temperature=0.7,
+                messages=[
+                    {"role": "system", "content": "You are Hydro Mind, an AI that responds based on uploaded transcripts."},
+                    {"role": "user", "content": query}
+                ]
             )
-            reply = response['choices'][0]['message']['content']
-            await message.channel.send(reply)
-
+            answer = response['choices'][0]['message']['content']
+            await message.channel.send(answer)
         except Exception as e:
+            print(f"[ERROR] OpenAI call failed: {e}")
             await message.channel.send("Something went wrong.")
-            print(e)
 
-# ==== KEEP ALIVE AND RUN ====
+# Start the webserver + bot
 keep_alive()
 client.run(DISCORD_TOKEN)
-
